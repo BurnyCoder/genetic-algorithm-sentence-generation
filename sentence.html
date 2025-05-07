@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Genetic Algorithm: Target Phrase Evolution</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: none;
+        }
+        .controls input, .controls button, .controls select {
+            transition: all 0.2s ease-in-out;
+        }
+        .controls input:hover, .controls button:hover, .controls select:hover {
+            transform: translateY(-1px);
+        }
+        .controls button:active {
+            transform: translateY(0px);
+        }
+        .log-entry {
+            font-family: 'Menlo', 'Monaco', 'Consolas', "Liberation Mono", "Courier New", monospace;
+        }
+        .highlight-best {
+            background-color: #059669; /* Tailwind emerald-600 */
+            color: white;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+        /* Custom scrollbar for log area */
+        #logArea::-webkit-scrollbar {
+            width: 6px;
+        }
+        #logArea::-webkit-scrollbar-track {
+            background: #374151; /* Tailwind gray-700 */
+            border-radius: 10px;
+        }
+        #logArea::-webkit-scrollbar-thumb {
+            background: #6b7280; /* Tailwind gray-500 */
+            border-radius: 10px;
+        }
+        #logArea::-webkit-scrollbar-thumb:hover {
+            background: #4b5563; /* Tailwind gray-600 */
+        }
+         .modal {
+            display: none; /* Hidden by default */
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.6);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #1f2937; /* Tailwind gray-800 */
+            margin: auto;
+            padding: 2rem;
+            border: 1px solid #374151; /* Tailwind gray-700 */
+            width: 90%;
+            max-width: 500px;
+            border-radius: 0.75rem; /* Tailwind rounded-xl */
+            text-align: center;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3), 0 20px 20px -10px rgba(0,0,0,0.2);
+        }
+        .modal-close {
+            color: #9ca3af; /* Tailwind gray-400 */
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 1;
+            margin-top: -1rem;
+            margin-right: -0.5rem;
+        }
+        .modal-close:hover {
+            color: #e5e7eb; /* Tailwind gray-200 */
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 flex flex-col items-center justify-center min-h-screen p-4 selection:bg-sky-500 selection:text-white">
+
+    <div class="w-full max-w-3xl bg-slate-800 p-6 sm:p-8 rounded-xl shadow-2xl">
+        <header class="mb-6 text-center">
+            <h1 class="text-3xl font-bold text-sky-400">Genetic Algorithm Simulation</h1>
+            <p class="text-slate-400 mt-1">Evolving a population to match a target phrase.</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 controls">
+            <div>
+                <label for="targetPhrase" class="block text-sm font-medium text-slate-300 mb-1">Target Phrase:</label>
+                <input type="text" id="targetPhrase" value="To be or not to be." class="bg-slate-700 border border-slate-600 text-slate-100 text-sm rounded-lg focus:ring-sky-500 focus:border-sky-500 block w-full p-2.5" placeholder="Enter target phrase">
+            </div>
+            <div>
+                <label for="populationSize" class="block text-sm font-medium text-slate-300 mb-1">Population Size:</label>
+                <input type="number" id="populationSize" value="200" min="10" max="1000" step="10" class="bg-slate-700 border border-slate-600 text-slate-100 text-sm rounded-lg focus:ring-sky-500 focus:border-sky-500 block w-full p-2.5">
+            </div>
+            <div>
+                <label for="mutationRate" class="block text-sm font-medium text-slate-300 mb-1">Mutation Rate (%):</label>
+                <input type="number" id="mutationRate" value="1" min="0.1" max="100" step="0.1" class="bg-slate-700 border border-slate-600 text-slate-100 text-sm rounded-lg focus:ring-sky-500 focus:border-sky-500 block w-full p-2.5">
+            </div>
+             <div>
+                <label for="elitismRate" class="block text-sm font-medium text-slate-300 mb-1">Elitism Rate (% of Pop):</label>
+                <input type="number" id="elitismRate" value="5" min="0" max="50" step="1" class="bg-slate-700 border border-slate-600 text-slate-100 text-sm rounded-lg focus:ring-sky-500 focus:border-sky-500 block w-full p-2.5">
+            </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-4 mb-6 controls items-center justify-center">
+            <button id="startButton" class="w-full sm:w-auto bg-sky-500 hover:bg-sky-600 text-white font-semibold py-2.5 px-5 rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-opacity-75">
+                Start Evolution
+            </button>
+            <button id="stopButton" class="w-full sm:w-auto bg-red-500 hover:bg-red-600 text-white font-semibold py-2.5 px-5 rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-75" disabled>
+                Stop Evolution
+            </button>
+        </div>
+        
+        <div class="bg-slate-700 p-4 rounded-lg shadow mb-6">
+            <h3 class="text-lg font-semibold text-slate-200 mb-2">Progress:</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
+                <div>Generation: <span id="generationCount" class="font-mono text-sky-400">0</span></div>
+                <div>Best Fitness: <span id="bestFitness" class="font-mono text-sky-400">0</span></div>
+                <div>Elapsed Time: <span id="elapsedTime" class="font-mono text-sky-400">0s</span></div>
+            </div>
+            <div class="mt-3">
+                <p class="text-sm text-slate-300">Best Phrase So Far:</p>
+                <p id="bestPhrase" class="text-md font-mono text-emerald-400 break-all">-</p>
+            </div>
+        </div>
+
+        <div class="bg-slate-700 p-4 rounded-lg shadow">
+            <h3 class="text-lg font-semibold text-slate-200 mb-2">Evolution Log (All Generations):</h3>
+            <div id="logArea" class="h-48 overflow-y-auto text-xs p-2 bg-slate-900/50 rounded">
+                </div>
+        </div>
+    </div>
+
+    <div id="messageModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close">&times;</span>
+            <p id="modalMessageText" class="text-lg text-slate-100"></p>
+        </div>
+    </div>
+
+    <script>
+        // --- Modal Functionality ---
+        const modal = document.getElementById('messageModal');
+        const modalMessageText = document.getElementById('modalMessageText');
+        const closeModalButton = document.querySelector('.modal-close');
+
+        function showModal(message) {
+            modalMessageText.textContent = message;
+            modal.style.display = 'flex';
+        }
+        closeModalButton.onclick = function() { modal.style.display = 'none'; }
+        window.onclick = function(event) {
+            if (event.target == modal) { modal.style.display = 'none'; }
+        }
+
+        // --- Genetic Algorithm Elements ---
+        const targetPhraseInput = document.getElementById('targetPhrase');
+        const populationSizeInput = document.getElementById('populationSize');
+        const mutationRateInput = document.getElementById('mutationRate');
+        const elitismRateInput = document.getElementById('elitismRate');
+
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+
+        const generationCountSpan = document.getElementById('generationCount');
+        const bestFitnessSpan = document.getElementById('bestFitness');
+        const bestPhraseSpan = document.getElementById('bestPhrase');
+        const elapsedTimeSpan = document.getElementById('elapsedTime');
+        const logArea = document.getElementById('logArea');
+
+        let targetPhrase = "";
+        let populationSize = 200;
+        let mutationRate = 0.01; // Default 1%
+        let elitismRate = 0.05; // Default 5%
+        let population = [];
+        let generation = 0;
+        let isRunning = false;
+        let animationFrameId;
+        let startTime;
+
+        const VALID_CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ .,!?";
+
+        // --- Core GA Functions ---
+
+        // Represents an individual in the population
+        class Individual {
+            constructor(genes = null) {
+                this.genes = genes || this.randomGenes(targetPhrase.length);
+                this.fitness = this.calculateFitness();
+            }
+
+            randomGenes(length) {
+                let arr = [];
+                for (let i = 0; i < length; i++) {
+                    arr.push(VALID_CHARS.charAt(Math.floor(Math.random() * VALID_CHARS.length)));
+                }
+                return arr.join('');
+            }
+
+            calculateFitness() {
+                let score = 0;
+                if (targetPhrase.length === 0) return 0; // Avoid division by zero if target is empty
+                for (let i = 0; i < this.genes.length; i++) {
+                    if (this.genes.charAt(i) === targetPhrase.charAt(i)) {
+                        score++;
+                    }
+                }
+                // Fitness is score / length, normalized between 0 and 1, then squared to emphasize better results
+                return Math.pow(score / targetPhrase.length, 2); 
+            }
+
+            // Creates a new individual by combining genes with another parent
+            crossover(partner) {
+                const midpoint = Math.floor(Math.random() * this.genes.length);
+                const childGenes = this.genes.substring(0, midpoint) + partner.genes.substring(midpoint);
+                return new Individual(childGenes);
+            }
+
+            // Randomly changes some genes based on mutation rate
+            mutate(rate) {
+                let geneArray = this.genes.split('');
+                for (let i = 0; i < geneArray.length; i++) {
+                    if (Math.random() < rate) {
+                        geneArray[i] = VALID_CHARS.charAt(Math.floor(Math.random() * VALID_CHARS.length));
+                    }
+                }
+                this.genes = geneArray.join('');
+                this.fitness = this.calculateFitness(); // Recalculate fitness after mutation
+            }
+        }
+
+        function initializePopulation() {
+            population = [];
+            for (let i = 0; i < populationSize; i++) {
+                population.push(new Individual());
+            }
+            population.sort((a, b) => b.fitness - a.fitness); // Sort by fitness descending
+        }
+        
+        function evolve() {
+            if (!isRunning) return;
+
+            // 1. Selection (Elitism + Mating Pool)
+            let newPopulation = [];
+            
+            // Elitism: carry over the best individuals
+            const eliteCount = Math.floor(populationSize * elitismRate);
+            for(let i=0; i < eliteCount; i++) {
+                if(population[i]) newPopulation.push(population[i]); // Ensure individual exists
+            }
+
+            // Create a mating pool based on fitness
+            let matingPool = [];
+            if (population.length > 0) { // Ensure population is not empty
+                population.forEach(individual => {
+                    let n = Math.floor(individual.fitness * 100) + 1; 
+                    for (let j = 0; j < n; j++) {
+                        matingPool.push(individual);
+                    }
+                });
+            }
+
+            // If mating pool is empty (can happen if all fitness is 0 or population is small/empty), fill it to allow crossover
+            if (matingPool.length === 0 && population.length > 0) {
+                for(let i=0; i < populationSize; i++) matingPool.push(population[Math.floor(Math.random() * population.length)]);
+            }
+
+
+            // 2. Crossover & Mutation
+            // Fill the rest of the new population
+            for (let i = newPopulation.length; i < populationSize; i++) {
+                if (matingPool.length >= 2) { // Need at least two parents for crossover
+                    const parentA = matingPool[Math.floor(Math.random() * matingPool.length)];
+                    const parentB = matingPool[Math.floor(Math.random() * matingPool.length)];
+                    
+                    const child = parentA.crossover(parentB);
+                    child.mutate(mutationRate);
+                    newPopulation.push(child);
+                } else if (population.length > 0) { // Fallback: clone and mutate if not enough for crossover
+                    const parent = population[Math.floor(Math.random() * population.length)];
+                    const child = new Individual(parent.genes); // Clone
+                    child.mutate(mutationRate);
+                    newPopulation.push(child);
+                } else {
+                    // If population is completely empty (should not happen after init), create new random individual
+                    newPopulation.push(new Individual());
+                }
+            }
+
+            population = newPopulation;
+            if (population.length > 0) {
+                population.sort((a, b) => b.fitness - a.fitness); // Sort by fitness
+            }
+
+
+            generation++;
+            updateDisplay();
+
+            if (population.length > 0 && population[0].fitness >= 0.99999) { 
+                stopEvolution("Target phrase achieved!");
+                bestPhraseSpan.innerHTML = highlightMatchingChars(population[0].genes, targetPhrase);
+                return;
+            }
+            
+            animationFrameId = requestAnimationFrame(evolve);
+        }
+
+        // --- UI Update Functions ---
+        function updateDisplay() {
+            generationCountSpan.textContent = generation;
+            if (population.length > 0) {
+                const currentBest = population[0];
+                bestFitnessSpan.textContent = currentBest.fitness.toFixed(4);
+                bestPhraseSpan.innerHTML = highlightMatchingChars(currentBest.genes, targetPhrase);
+
+                if (generation % 1 === 0 || currentBest.fitness === 1) { // Log every generation or if solved
+                    addLogEntry(`Gen ${generation}: "${currentBest.genes}" (Fitness: ${currentBest.fitness.toFixed(4)})`);
+                }
+            } else {
+                bestFitnessSpan.textContent = "0.0000";
+                bestPhraseSpan.innerHTML = "-";
+            }
+
+
+            const elapsedTime = ((Date.now() - startTime) / 1000).toFixed(1);
+            elapsedTimeSpan.textContent = `${elapsedTime}s`;
+        }
+        
+        function highlightMatchingChars(generated, target) {
+            let highlighted = "";
+            for (let i = 0; i < generated.length; i++) {
+                if (i < target.length && generated[i] === target[i]) {
+                    highlighted += `<span class="highlight-best">${generated[i]}</span>`;
+                } else {
+                    highlighted += `<span>${generated[i]}</span>`;
+                }
+            }
+            return highlighted;
+        }
+
+        function addLogEntry(message) {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry mb-1 text-slate-400';
+            entry.textContent = message;
+            logArea.appendChild(entry);
+            // REMOVED: Code that limits the number of log entries
+            // while (logArea.children.length > 15) {
+            //     logArea.removeChild(logArea.firstChild);
+            // }
+            logArea.scrollTop = logArea.scrollHeight; // Auto-scroll to the bottom
+        }
+
+        function resetUI() {
+            generation = 0;
+            generationCountSpan.textContent = "0";
+            bestFitnessSpan.textContent = "0";
+            bestPhraseSpan.innerHTML = "-";
+            elapsedTimeSpan.textContent = "0s";
+            logArea.innerHTML = ""; // Clear log on reset
+        }
+
+        // --- Control Functions ---
+        function startEvolution() {
+            targetPhrase = targetPhraseInput.value.trim();
+            if (!targetPhrase) {
+                showModal("Target phrase cannot be empty.");
+                return;
+            }
+            if (targetPhrase.length > 100) { 
+                showModal("Target phrase is too long (max 100 chars).");
+                return;
+            }
+            for(let char of targetPhrase) {
+                if (VALID_CHARS.indexOf(char) === -1) {
+                    showModal(`Target phrase contains invalid character: '${char}'. Only use: ${VALID_CHARS}`);
+                    return;
+                }
+            }
+
+            populationSize = parseInt(populationSizeInput.value);
+            mutationRate = parseFloat(mutationRateInput.value) / 100; 
+            elitismRate = parseFloat(elitismRateInput.value) / 100;
+
+            if (isNaN(populationSize) || populationSize < 10 || populationSize > 1000) {
+                showModal("Population size must be between 10 and 1000.");
+                return;
+            }
+            if (isNaN(mutationRate) || mutationRate < 0.0001 || mutationRate > 1) { // Adjusted min mutation rate slightly
+                showModal("Mutation rate must be between 0.01% and 100%.");
+                return;
+            }
+             if (isNaN(elitismRate) || elitismRate < 0 || elitismRate > 0.5) {
+                showModal("Elitism rate must be between 0% and 50%.");
+                return;
+            }
+
+            isRunning = true;
+            startButton.disabled = true;
+            stopButton.disabled = false;
+            targetPhraseInput.disabled = true;
+            populationSizeInput.disabled = true;
+            mutationRateInput.disabled = true;
+            elitismRateInput.disabled = true;
+
+            resetUI();
+            initializePopulation();
+            startTime = Date.now();
+            addLogEntry(`Starting evolution for: "${targetPhrase}"`);
+            addLogEntry(`Pop: ${populationSize}, Mut: ${(mutationRate*100).toFixed(2)}%, Elitism: ${(elitismRate*100).toFixed(0)}%`);
+            evolve();
+        }
+
+        function stopEvolution(message = "Evolution stopped by user.") {
+            isRunning = false;
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            startButton.disabled = false;
+            stopButton.disabled = true;
+            targetPhraseInput.disabled = false;
+            populationSizeInput.disabled = false;
+            mutationRateInput.disabled = false;
+            elitismRateInput.disabled = false;
+            addLogEntry(message);
+            if (message !== "Target phrase achieved!") { // Avoid double modal for success
+                 showModal(message);
+            }
+        }
+
+        // --- Event Listeners ---
+        startButton.addEventListener('click', startEvolution);
+        stopButton.addEventListener('click', () => stopEvolution());
+
+        // Initial state
+        stopButton.disabled = true;
+
+    </script>
+</body>
+</html>
